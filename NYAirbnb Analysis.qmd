@@ -1,0 +1,336 @@
+---
+title: "NY AIRBNB ANALYSIS"
+author: "MEGHANA ATLURI"
+format: pdf
+editor: visual
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
+  tidy = TRUE,
+  comment = "#>",
+  fig.align = 'center',
+  echo = TRUE
+)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(janitor)
+library(lubridate)
+```
+
+### [I . Reading CSV File]{.underline}
+
+```{r}
+#Impoting File
+ABNB <- read_csv("AB_NYC_2019.csv")
+```
+
+So we have a total of 48895 numbers of rows and 16 numbers of columns (features) in our dataset.
+
+### [II. UNDERSTANDING OUR DATA]{.underline}
+
+```{r}
+#dimensions of dataset
+dim(ABNB)
+```
+
+So we have a total of 48895 numbers of rows and 16 numbers of columns (features) in our dataset.
+
+```{r}
+# to see type associated with each column, and the first few values of each column of the data frame.
+glimpse(ABNB)
+```
+
+```{r}
+head(ABNB)
+```
+
+```{r}
+#column names in our dataset
+colnames(ABNB)
+```
+
+### [III.DATA CLEANING]{.underline}
+
+**DROP UNNECESSARY COLUMNS**
+
+```{r}
+#Dropping columns by index
+ABNB <- select(ABNB, -c(1,2,12,13))
+```
+
+Dropping columns listing id, name, minimum nights, number of reviews, last review from dataset.
+
+**HANDLING NA VALUES**
+
+```{r}
+#Checking number of NA values in each column
+count_na <- function(x) {
+  sum(is.na(x))
+}
+apply(ABNB, MARGIN = 2, FUN = count_na)
+```
+
+```{r}
+# Replace NA with "UNKNOWN" in the hostname column
+ABNB$host_name[is.na(ABNB$host_name)] <- "Unknown"
+```
+
+```{r}
+# Filling missing values; assuming missing reviews indicate no reviews yet
+ABNB$reviews_per_month <- replace(ABNB$reviews_per_month, is.na(ABNB$reviews_per_month), 0)
+```
+
+**CLEANING AND RENAMING COLUMNS**
+
+```{r}
+#cleaning column names and renaming them
+ABNB <- ABNB |>
+  clean_names() |>
+  rename( borough_name = neighbourhood_group,
+         neighbourhood_name = neighbourhood , 
+        host_listing_count = calculated_host_listings_count,
+        availability_per_year = availability_365) 
+
+```
+
+**AS FACTORS**
+
+```{r}
+#CONVERTING BOROUGH NAME TO FACTOR
+ ABNB$borough_name = as.factor(ABNB$borough_name)
+#CONVERTING ROOM TYPE TO FACTOR
+ ABNB$room_type = as.factor(ABNB$room_type)
+```
+
+### [IV. DATA ANALYSIS]{.underline}
+
+#### **Analyze borough in NYC**
+
+```{r}
+#analysis of borough name, reorder the factor
+ggplot(ABNB, aes(x = fct_infreq(borough_name))) +
+geom_bar(fill="forestgreen") + 
+  xlab("Borough Name")+
+  ylab("Number of Listings") +
+   ggtitle("Number of Airbnb Listings by Borough")
+```
+
+This plot helps identify which boroughs are most active on Airbnb - Manhattan and Brooklyn have the highest listing counts , and Staten Island has least number of listings in NYC.
+
+#### **Analyze room_type in NYC**
+
+```{r}
+#analysis of borough name, reorder the factor
+ggplot(ABNB, aes(x = fct_rev(fct_infreq(room_type)))) +
+geom_bar(fill="steelblue" ) + 
+  xlab("Room Type")+
+    ylab("Number of Listings") +
+  ggtitle("Number of Airbnb Listings by Room Type")
+```
+
+This plot reveal which types of accommodations are most common in NYC’s Airbnb market “Entire home/apt” is often the most listed type, followed by “Private room.”
+
+#### **Count of room types in different boroughs in NYC**
+
+```{r}
+#analyze room types in different borough
+ggplot(data = ABNB) +
+geom_bar(aes(x = room_type, fill = borough_name),position = "dodge") + coord_flip() +
+  xlab("Room Type") +
+  ylab("Number of Listings") +
+  ggtitle("Distribution of Room Types Across NYC Boroughs")
+```
+
+This plot highlights how boroughs differ in their room type offerings. For instance, Manhattan has more entire home/apt, while Brooklyn lean toward private rooms. It’s useful for comparing room type trends by location.
+
+#### **Coordinates of Airbnb Room type available across NYC**
+
+```{r}
+#analyze coordinates for different room types available
+ggplot(data = ABNB, aes(x = latitude, y = longitude, color = room_type)) +
+geom_point(size = 1, alpha = 0.6) +
+  xlab("Latitude")+
+  ylab("Longitude")+
+  ggtitle("Geographic Distribution of Airbnb Room Types in NYC") +
+  scale_color_brewer(palette = "Dark2")
+```
+
+#### **Comparing price across all borough for different room types in NYC 2019.**
+
+```{r}
+#price is distributed for different room type in each boroughs across nyc 
+ggplot(data = ABNB, aes(x = borough_name, y = price,fill=room_type)) +
+  geom_boxplot()+
+  coord_cartesian(ylim = c(0, 500)) +
+  xlab("Borough Name")+
+  ylab("Price (in dollars)")+
+    ggtitle("Room Type Price Distribution Across NYC Boroughs")+
+    scale_fill_brewer(palette = "Pastel1")
+```
+
+-   Entire home/apt has the highest median price over other room types, followed by Private room and shared room, as expected
+
+-   Entire homes in Manhattan have the highest median prices. Shared rooms and private rooms are more affordable, especially in boroughs like the Bronx
+
+-   Price variability also higher in tourist-heavy boroughs. (Manhattan,Brooklyn,Queens)
+
+```{r}
+#using facets to compare price for rooms in different boroughs in NYC
+ggplot(data = ABNB, aes(x = room_type, y = price, fill= room_type)) +
+geom_violin() +
+coord_cartesian(ylim = c(0, 500)) +
+  xlab("Room Type")+
+  ylab("Price (in dollars)") +
+facet_wrap(vars(borough_name), ncol=1 )
+```
+
+#### **Room_types and their relation with availability in different Boroughs**
+
+```{r}
+ggplot(ABNB,aes(room_type,availability_per_year))+
+  geom_boxplot(aes(fill=borough_name))+
+  xlab("Room Type") +
+  ylab("Availability in a year") +
+  ggtitle("Availability of rooms in different boroughs in NYC")
+```
+
+Brooklyn and Manhattan have the lowest availability i.e it has highest demand. Shared rooms tend to have more availability meaning less demand.
+
+```{r}
+ABNB |>
+group_by(borough_name,room_type)|>
+  summarize(
+    count=n() , 
+    avg.availability= mean(availability_per_year) 
+  ) |>
+arrange(desc(avg.availability))
+```
+
+#### **Top seen hosts with listings in NYC**
+
+```{r}
+ABNB3 <- ABNB |>
+  select(host_id, host_name, host_listing_count) |>
+  distinct() |>
+  arrange(desc(host_listing_count)) |>
+  slice_head(n = 10)
+
+
+#plotting Top10 hosts with listing in NYC
+ggplot(ABNB3, aes(x = reorder(host_name, host_listing_count), y = host_listing_count)) +
+  geom_col(fill = "pink") +
+  geom_text(aes(label = host_listing_count)) +
+  coord_flip() +
+  xlab("Host Name") +
+  ylab("Listing Count") +
+  ggtitle("Top 10 Airbnb Hosts in NYC by Listings") 
+```
+
+Top Hosts with listings in NYC in year 2019 is Sonder , Blueground , Kara , Kazuya and so on...
+
+```{r}
+# Select relevant columns
+reviews <- select(ABNB, host_id, reviews_per_month)
+
+# Join with top 10 hosts table
+final <- inner_join(ABNB3, reviews, by = "host_id")
+
+# Group and summarize
+ABNB3B <- final |>
+  group_by(host_name) |>
+  summarize(
+    avg_review = mean(reviews_per_month, na.rm = TRUE),
+    avg_count_listing = mean(host_listing_count, na.rm = TRUE)
+  )
+# Correlation between avg listings and avg reviews
+cor_value <- cor(ABNB3B$avg_review, ABNB3B$avg_count_listing, use = "complete.obs")
+round(cor_value, 3)
+
+```
+
+This result suggests a strong positive correlation (≈ 0.78) between the average number of reviews per host and their average number of listings. Hosts who manage more listings tend to receive more reviews.
+
+#### **Which Neighbourhood and Room type has highest reviews in 2019**
+
+```{r}
+# Summarize reviews by borough and room type
+ABNB4 <- ABNB |>
+  select(borough_name,room_type , reviews_per_month) |>
+group_by(borough_name,room_type)|>
+summarize(
+  count=n(),
+  avg_review = mean(reviews_per_month)
+)
+
+ggplot(ABNB4, aes(x = room_type, y = avg_review, fill = borough_name)) +
+  geom_col(position = "dodge") +
+  xlab("Room Type") +
+  ylab("Average Reviews per Month") +
+  ggtitle("Average Monthly Reviews by Room Type and Borough") +
+  theme_minimal()
+```
+
+-   In most boroughs "Entire apt/home" is high rated followed by "Private" and "Shared room".
+
+-   Shared rooms are least reviewed overall, especially in Staten Island and Brooklyn, indicating lower guest preference or listing volume.
+
+### [V. MODELING]{.underline}
+
+```{r}
+# Linear regression model
+model <- lm(price ~ borough_name + room_type + availability_per_year + reviews_per_month + minimum_nights, data = ABNB)
+
+# Model summary
+summary(model)
+
+```
+
+```{r}
+# Getting model diagnostics
+par(mfrow = c(2, 2))
+plot(model)
+```
+
+The graphs above clearly tell that its nonlinear, residuals not normally distributed, and indicates heteroscedasticity
+
+So, next step is **log-transformed model.**
+
+```{r}
+# Clean the dataset: remove rows with NA or non-positive price
+ABNB <- ABNB[!is.na(ABNB$price) & ABNB$price > 0, ]
+
+# Log-transform the price again to overwrite any bad values
+ABNB$log_price <- log(ABNB$price)
+
+# Fit the linear model
+log_model <- lm(log_price ~ borough_name + room_type + availability_per_year + reviews_per_month + minimum_nights, data = ABNB)
+
+# View model summary
+summary(log_model)
+
+```
+
+```{r}
+# Diagnostics plots
+par(mfrow = c(2, 2))
+plot(log_model)
+```
+
+```{r}
+summary(model)$r.squared
+summary(log_model)$r.squared
+```
+
+```{r}
+AIC(model, log_model)
+BIC(model, log_model)
+```
+
+From R-squared , AIC , BIC it is clear that log_model is better model than base model.
